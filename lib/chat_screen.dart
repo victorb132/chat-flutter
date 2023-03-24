@@ -14,18 +14,22 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   void _sendMessage({String? text, File? imgFile}) async {
+    Map<String, dynamic> data = {};
+
     if (imgFile != null) {
       UploadTask task = FirebaseStorage.instance
           .ref()
           .child(DateTime.now().millisecondsSinceEpoch.toString())
           .putFile(imgFile);
 
-      TaskSnapshot taskSnapshot = task.snapshot;
+      TaskSnapshot taskSnapshot = await task;
       String url = await taskSnapshot.ref.getDownloadURL();
-      print(url);
+      data['imgUrl'] = url;
     }
 
-    FirebaseFirestore.instance.collection('messages').add({'text': text});
+    if (text != null) data['text'] = text;
+
+    FirebaseFirestore.instance.collection('messages').add(data);
   }
 
   @override
@@ -35,7 +39,40 @@ class _ChatScreenState extends State<ChatScreen> {
         title: const Text("Olá"),
         elevation: 0,
       ),
-      body: TextComposer(_sendMessage),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream:
+                  FirebaseFirestore.instance.collection('messages').snapshots(),
+              builder: (context, snapshot) {
+                switch (snapshot.connectionState) {
+                  case ConnectionState.none:
+                  case ConnectionState.waiting:
+                    return Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  default:
+                    List<DocumentSnapshot> documents = snapshot.data!.docs;
+
+                    return ListView.builder(
+                      itemCount: documents.length,
+                      reverse: true,
+                      itemBuilder: (context, index) {
+                        return ListTile(
+                          title: Text(documents[index].data['texto']),
+                        );
+                      },
+                    );
+                }
+              },
+            ),
+          ),
+          TextComposer(
+            _sendMessage,
+          ),
+        ],
+      ),
     );
   }
 }
